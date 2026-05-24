@@ -19,7 +19,11 @@ Rules:
 Each object in the array must have exactly these fields:
   "text"     — the quote text (without surrounding quotation marks)
   "author"   — the person's name as commonly known
-  "category" — one of: Philosophy, Science, Literature, Leadership, Creativity, Resilience, Mindfulness, Success, Humanity, Nature`;
+  "category" — one of: Philosophy, Science, Literature, Leadership, Creativity, Resilience, Mindfulness, Success, Humanity, Nature
+  "era"      — one of: ancient, medieval, renaissance, enlightenment, victorian, modern, contemporary
+  "culture"  — one of: greek, roman, european, american, eastasian, southasian, middleeastern, african, latinamerican
+
+Choose era and culture to accurately reflect the author's historical period and background.`;
 
 app.use(express.static(path.join(__dirname, "public")));
 

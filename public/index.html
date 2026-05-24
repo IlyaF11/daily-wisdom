@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Daily Wisdom — AI-Generated Quotes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Cinzel:wght@400;600&family=Cormorant+Garamond:ital,wght@0,400;1,400;1,600&family=IM+Fell+English:ital@0;1&family=Lora:ital,wght@0,400;1,400;1,600&family=Noto+Serif+JP:wght@400;500&family=Philosopher:ital,wght@0,400;1,400&family=Playfair+Display:ital,wght@0,400;1,400;1,600&family=Raleway:wght@300;400&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -96,6 +99,17 @@
       background: #ede9fe;
       border-radius: 100px;
       padding: 3px 12px;
+    }
+
+    .era-label {
+      margin-top: 8px;
+      font-size: 0.7rem;
+      font-style: normal;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #a78bfa;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      opacity: 0.75;
     }
 
     /* Loading state */
@@ -246,6 +260,7 @@
     <blockquote id="text" style="display:none"></blockquote>
     <cite id="author" style="display:none"></cite>
     <div class="category-badge" id="category" style="display:none"></div>
+    <div class="era-label" id="eraLabel" style="display:none"></div>
   </div>
 
   <div class="actions">
@@ -263,6 +278,53 @@
   <div class="toast" id="toast"></div>
 
   <script>
+    // ── Font map ────────────────────────────────────────────────────────────
+    const FONT_MAP = {
+      // Era-based (western / default)
+      ancient:       { family: "'Cinzel', serif",             size: '1.35rem', style: 'normal', weight: '400' },
+      medieval:      { family: "'IM Fell English', serif",    size: '1.5rem',  style: 'italic', weight: '400' },
+      renaissance:   { family: "'Cormorant Garamond', serif", size: '1.7rem',  style: 'italic', weight: '400' },
+      enlightenment: { family: "'Playfair Display', serif",   size: '1.5rem',  style: 'italic', weight: '400' },
+      victorian:     { family: "'Playfair Display', serif",   size: '1.5rem',  style: 'italic', weight: '600' },
+      modern:        { family: "'Raleway', sans-serif",       size: '1.45rem', style: 'normal', weight: '300' },
+      contemporary:  { family: "Georgia, serif",              size: '1.55rem', style: 'italic', weight: '400' },
+      // Culture overrides (take priority over era for non-western voices)
+      greek:         { family: "'Cinzel', serif",             size: '1.35rem', style: 'normal', weight: '400' },
+      roman:         { family: "'Cinzel', serif",             size: '1.35rem', style: 'normal', weight: '400' },
+      eastasian:     { family: "'Noto Serif JP', serif",      size: '1.4rem',  style: 'normal', weight: '400' },
+      middleeastern: { family: "'Amiri', serif",              size: '1.65rem', style: 'italic', weight: '400' },
+      southasian:    { family: "'Philosopher', serif",        size: '1.5rem',  style: 'italic', weight: '400' },
+      latinamerican: { family: "'Lora', serif",               size: '1.5rem',  style: 'italic', weight: '400' },
+      african:       { family: "'Lora', serif",               size: '1.5rem',  style: 'italic', weight: '400' },
+    };
+
+    const ERA_LABELS = {
+      ancient: 'Ancient', medieval: 'Medieval', renaissance: 'Renaissance',
+      enlightenment: 'Enlightenment', victorian: 'Victorian',
+      modern: 'Modern', contemporary: 'Contemporary',
+    };
+    const CULTURE_LABELS = {
+      greek: 'Greek', roman: 'Roman', european: 'European', american: 'American',
+      eastasian: 'East Asian', southasian: 'South Asian',
+      middleeastern: 'Middle Eastern', african: 'African', latinamerican: 'Latin American',
+    };
+
+    const CULTURE_PRIORITY = new Set(['greek','roman','eastasian','middleeastern','southasian','latinamerican','african']);
+
+    function getFont(era, culture) {
+      if (CULTURE_PRIORITY.has(culture) && FONT_MAP[culture]) return FONT_MAP[culture];
+      return FONT_MAP[era] || FONT_MAP.contemporary;
+    }
+
+    function applyFont(era, culture) {
+      const f = getFont(era, culture);
+      textEl.style.fontFamily  = f.family;
+      textEl.style.fontSize    = f.size;
+      textEl.style.fontStyle   = f.style;
+      textEl.style.fontWeight  = f.weight;
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     let quotes = [];
     let currentIndex = -1;
     let isLoading = false;
@@ -272,6 +334,7 @@
     const textEl    = document.getElementById('text');
     const authorEl  = document.getElementById('author');
     const categoryEl= document.getElementById('category');
+    const eraLabelEl= document.getElementById('eraLabel');
     const dotsEl    = document.getElementById('dots');
     const btnNew    = document.getElementById('btnNew');
     const btnCopy   = document.getElementById('btnCopy');
@@ -280,10 +343,11 @@
 
     function setLoading(on) {
       isLoading = on;
-      loadingMsg.style.display = on ? 'block' : 'none';
-      textEl.style.display     = on ? 'none'  : 'block';
-      authorEl.style.display   = on ? 'none'  : 'block';
-      categoryEl.style.display = on ? 'none'  : 'block';
+      loadingMsg.style.display  = on ? 'block' : 'none';
+      textEl.style.display      = on ? 'none'  : 'block';
+      authorEl.style.display    = on ? 'none'  : 'block';
+      categoryEl.style.display  = on ? 'none'  : 'block';
+      eraLabelEl.style.display  = on ? 'none'  : 'block';
       btnNew.disabled     = on || quotes.length === 0;
       btnCopy.disabled    = on || quotes.length === 0;
       btnShare.disabled   = on || quotes.length === 0;
@@ -313,9 +377,13 @@
       card.classList.add('fade-out');
       setTimeout(() => {
         currentIndex = idx;
-        textEl.textContent     = q.text;
-        authorEl.textContent   = q.author;
-        categoryEl.textContent = q.category || '';
+        textEl.textContent      = q.text;
+        authorEl.textContent    = q.author;
+        categoryEl.textContent  = q.category || '';
+        const eraLabel     = ERA_LABELS[q.era]     || '';
+        const cultureLabel = CULTURE_LABELS[q.culture] || '';
+        eraLabelEl.textContent = [eraLabel, cultureLabel].filter(Boolean).join(' · ');
+        applyFont(q.era, q.culture);
         updateDots();
         card.classList.remove('fade-out');
       }, 350);
